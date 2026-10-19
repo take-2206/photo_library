@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bản đồ ảnh</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f4eee2;--paper2:#ebe3d3;--ink:#3a2f27;--mute:#8a7d6d;--red:#8c3b2a;--dark:#2b2420;--line:#d8cdb8;
+--serif:"IM Fell English",Georgia,serif;--mono:"Courier Prime","Courier New",monospace;
+--grain:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 .4 0 0 0 0 .3 0 0 0 0 .2 0 0 0 .09 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font:17px/1.5 var(--serif)}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.mono{font-family:var(--mono);font-size:.78rem;letter-spacing:.04em;text-transform:uppercase}
+
+/* map */
+#map{position:fixed;inset:0;background:var(--paper2)}
+.leaflet-tile-pane{filter:sepia(.7) saturate(.7) contrast(.92) brightness(1.04)}
+.leaflet-container{font-family:var(--serif)}
+#map::after{content:"";position:absolute;inset:0;z-index:450;pointer-events:none;background:var(--grain),radial-gradient(ellipse at center,transparent 55%,rgba(90,60,30,.22))}
+.leaflet-top.leaflet-left{top:env(safe-area-inset-top,0);margin-top:64px}
+.leaflet-bar a{background:var(--paper);color:var(--ink);border-color:var(--line)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--paper);color:var(--ink);box-shadow:0 6px 18px rgba(60,40,20,.35)}
+.leaflet-popup-content-wrapper{border-radius:3px}
+.leaflet-control-attribution{background:rgba(244,238,226,.8)!important}
+
+/* chrome */
+#brand{position:fixed;left:16px;top:calc(16px + env(safe-area-inset-top,0px));z-index:500;background:var(--paper);border:1px solid var(--line);padding:8px 12px;box-shadow:0 2px 8px rgba(60,40,20,.2)}
+.pill{background:var(--dark);color:#f4eee2;border:0;border-radius:999px;padding:12px 22px;cursor:pointer;box-shadow:0 8px 20px rgba(40,25,10,.35)}
+#openAlbum{position:fixed;left:16px;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:500}
+#fab{position:fixed;right:16px;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:500;width:58px;height:58px;border:0;background:var(--red);color:#f4eee2;font:2rem/1 var(--mono);cursor:pointer;border-radius:4px;box-shadow:0 8px 20px rgba(40,25,10,.4),inset 0 0 0 3px var(--red),inset 0 0 0 4px rgba(244,238,226,.5)}
+.pin{width:26px;height:26px;background:var(--red);border:3px solid var(--paper);border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.45)}
+.pin.new{background:var(--dark)}
+.pop img{width:190px;display:block;border:6px solid #fbf7ee;box-shadow:0 1px 4px rgba(0,0,0,.3);margin-bottom:6px}
+.pop small{display:block;color:var(--mute)}
+.pop button{margin:8px 6px 0 0;padding:4px 10px;border:1px solid var(--ink);background:none;cursor:pointer}
+.pop button.del{border-color:var(--red);color:var(--red)}
+
+/* add sheet = tấm vé */
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:600;max-width:420px;margin:0 auto;padding:0 12px calc(12px + env(safe-area-inset-bottom,0px));transform:translateY(115%);transition:transform .3s}
+#sheet.open{transform:none}
+#ticketWrap{filter:drop-shadow(0 10px 18px rgba(50,30,10,.4))}
+.ticket{--stub:96px;position:relative;background:#f1e7d0 var(--grain);border-left:6px solid var(--red);border-radius:6px;
+ -webkit-mask:radial-gradient(circle 11px at 0 calc(100% - var(--stub)),#0000 97%,#000),radial-gradient(circle 11px at 100% calc(100% - var(--stub)),#0000 97%,#000);
+ -webkit-mask-composite:source-in;
+ mask:radial-gradient(circle 11px at 0 calc(100% - var(--stub)),#0000 97%,#000),radial-gradient(circle 11px at 100% calc(100% - var(--stub)),#0000 97%,#000);
+ mask-composite:intersect}
+.tmain{padding:14px 18px 16px;display:grid;gap:10px}
+.thead{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--ink);padding-bottom:6px}
+.thead strong{font:italic 1.4rem var(--serif)}
+#close{background:none;border:0;font-size:1.7rem;line-height:1;cursor:pointer;color:var(--mute);padding:0 2px}
+.tmeta{display:flex;justify-content:space-between;align-items:center;color:var(--mute)}
+.dt{display:flex;align-items:center;gap:6px}
+.dt input{font:.8rem var(--mono);color:var(--ink);background:none;border:0;border-bottom:1px dashed var(--ink);padding:2px 0;border-radius:0}
+#slot{position:relative;display:grid;place-items:center;height:104px;border:2px dashed var(--mute);background:rgba(120,90,50,.06);color:var(--mute);overflow:hidden;cursor:pointer}
+#file{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+#preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;filter:sepia(.2)}
+.field{display:grid;gap:2px}
+.field label{color:var(--mute)}
+.field input{width:100%;padding:4px 0;background:none;border:0;border-bottom:1px dashed var(--ink);font:1.05rem var(--serif);border-radius:0}
+.field input:focus-visible{outline:0;border-bottom:2px solid var(--red)}
+.row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
+#find{padding:5px 12px;background:none;border:1px solid var(--ink);cursor:pointer;font-family:var(--mono);text-transform:uppercase;font-size:.75rem}
+#hint{margin:0;color:var(--mute);font-size:.85rem;min-height:1.3em}
+.perf{height:0;border-top:2px dashed #b9a98a;margin:0 14px}
+.stub{height:var(--stub);padding:12px 18px 14px;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
+.barcode{height:52px;background:repeating-linear-gradient(90deg,var(--ink) 0 2px,transparent 2px 4px,var(--ink) 4px 5px,transparent 5px 9px,var(--ink) 9px 12px,transparent 12px 14px);opacity:.85}
+.main{padding:14px 18px;background:var(--red);color:#f4eee2;border:0;cursor:pointer;font-family:var(--mono);text-transform:uppercase;font-size:.85rem;letter-spacing:.05em;border-radius:3px;box-shadow:inset 0 0 0 3px var(--red),inset 0 0 0 4px rgba(244,238,226,.5)}
+button:disabled{opacity:.5}
+
+/* album */
+#album{position:fixed;inset:0;z-index:800;background:var(--paper) var(--grain);display:none;overflow:hidden}
+#album.open{display:block}
+#back{position:absolute;left:20px;top:calc(18px + env(safe-area-inset-top,0px));background:none;border:0;cursor:pointer;z-index:5}
+#counter{position:absolute;left:20px;top:50%}
+#caption{position:absolute;right:20px;top:50%;text-align:right;max-width:22vw;z-index:5}
+#caption b{display:block;font-weight:400}
+#caption button{margin-top:10px;background:none;border:0;border-bottom:1px solid var(--red);color:var(--red);cursor:pointer;padding:0}
+#stack{position:absolute;inset:0;display:grid;place-items:center;cursor:pointer;touch-action:pan-y}
+.card{position:absolute;width:min(66vmin,520px);aspect-ratio:1;padding:min(2.2vmin,16px);background:#efe9de var(--grain);box-shadow:0 14px 34px rgba(60,40,20,.28),0 1px 2px rgba(60,40,20,.3);transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .4s}
+.card img{width:100%;height:100%;object-fit:cover;display:block;filter:sepia(.18) contrast(.98)}
+#index{position:absolute;inset:0;display:none;overflow:auto;padding:70px 20px 100px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;align-content:start}
+#album.idx #index{display:grid}
+#album.idx #stack,#album.idx #counter,#album.idx #caption{display:none}
+#index figure{margin:0;padding:8px;background:#efe9de;box-shadow:0 4px 12px rgba(60,40,20,.25);cursor:pointer}
+#index img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+#index figcaption{margin-top:6px}
+#toggle{position:absolute;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;gap:18px;z-index:5}
+#toggle button{background:none;border:0;cursor:pointer;color:#8f8272}
+#toggle button.on{color:#fff}
+#empty{position:absolute;inset:0;display:none;place-items:center;text-align:center;color:var(--mute);padding:0 24px}
+@media (max-width:640px){#caption{top:auto;bottom:90px;left:20px;right:20px;max-width:none;text-align:left}#counter{top:auto;bottom:130px;left:20px;display:none}.card{width:78vw}}
+@media (prefers-reduced-motion:reduce){.card,#sheet{transition:none}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="brand" class="mono">✦ Bản đồ ảnh · <span id="n">0</span></div>
+<button id="openAlbum" class="pill mono">Xem ảnh</button>
+<button id="fab" aria-label="Thêm ảnh">+</button>
+
+<section id="sheet" aria-label="Thêm ảnh">
+ <div id="ticketWrap"><form id="form" class="ticket">
+  <div class="tmain">
+    <div class="thead"><strong>Vé ảnh</strong><button type="button" id="close" aria-label="Đóng">×</button></div>
+    <div class="tmeta mono"><span id="serial"></span><label class="dt">Ngày chụp <input type="date" id="tdate" required></label></div>
+    <label id="slot" class="mono"><span>+ Chạm để chọn ảnh</span><img id="preview" alt=""><input id="file" type="file" accept="image/*" required></label>
+    <div class="field"><label class="mono" for="title">Tên ảnh</label><input id="title" required autocomplete="off"></div>
+    <div class="row">
+      <div class="field"><label class="mono" for="place">Địa điểm</label><input id="place" placeholder="Hồ Gươm, Hà Nội" required autocomplete="off"></div>
+      <button type="button" id="find">Tìm</button>
+    </div>
+    <p id="hint"></p>
+  </div>
+  <div class="perf"></div>
+  <div class="stub"><div class="barcode" aria-hidden="true"></div><button type="submit" class="main" id="save">Lưu ảnh</button></div>
+ </form></div>
+</section>
+
+<section id="album" aria-label="Album ảnh">
+  <button id="back" class="mono">← Bản đồ</button>
+  <div id="counter" class="mono"></div>
+  <div id="caption" class="mono"><b id="cTitle"></b><span id="cMeta"></span><br><button id="cLocate">Xem trên bản đồ</button></div>
+  <div id="stack"></div>
+  <div id="index"></div>
+  <div id="empty" class="mono">Chưa có ảnh nào.<br>Quay lại bản đồ và bấm + để thêm.</div>
+  <div id="toggle" class="pill mono"><button id="mSlide" class="on">Slide</button><button id="mIndex">Index</button></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// === ĐIỀN THÔNG TIN SUPABASE CỦA BẠN (Project Settings > API) ===
+const SUPABASE_URL = "https://qjgneejvshmzeijbuhjn.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_B_Iw_ldl9N7LmZpGRBEcRQ_kzk2ICX3";
+// ================================================================
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id);
+const map = L.map("map", {zoomControl:false}).setView([16.0, 106.0], 6);
+L.control.zoom({position:"topleft"}).addTo(map);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(map);
+
+const icon = cls => L.divIcon({className:"", html:`<div class="pin ${cls||""}"></div>`, iconSize:[26,26], iconAnchor:[6,26], popupAnchor:[8,-26]});
+const HINT = "Chạm vào bản đồ để chọn hoặc đổi vị trí.";
+let picked = null, newMarker = null, markers = [], photos = [], cur = 0;
+const fmtDate = p => { const d = p.taken_at || (p.created_at||"").slice(0,10); return d ? d.split("-").reverse().join("/") : ""; };
+const url = p => db.storage.from("photos").getPublicUrl(p).data.publicUrl;
+const isOpen = () => $("sheet").classList.contains("open");
+
+/* ---------- thêm ảnh ---------- */
+function openSheet(){ $("serial").textContent = "Nº " + String(Math.floor(Math.random()*1e6)).padStart(6,"0"); $("tdate").value = new Date(Date.now() - new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10); $("sheet").classList.add("open"); $("hint").textContent = picked ? "" : HINT; }
+function closeSheet(){
+  $("sheet").classList.remove("open"); $("form").reset(); $("preview").style.display = "none";
+  if(newMarker){ newMarker.remove(); newMarker = null; } picked = null;
+}
+function setPick(ll){
+  picked = ll;
+  if(newMarker) newMarker.setLatLng(ll); else newMarker = L.marker(ll, {icon:icon("new")}).addTo(map);
+  $("hint").textContent = `Vị trí: ${ll.lat.toFixed(4)}, ${ll.lng.toFixed(4)}`;
+}
+async function geocode(q){
+  const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=vi&q=" + encodeURIComponent(q));
+  return (await r.json())[0];
+}
+async function reverse(ll){
+  try{
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=16&accept-language=vi&lat=${ll.lat}&lon=${ll.lng}`);
+    const j = await r.json(); return j.name || (j.display_name || "").split(",").slice(0,2).join(",").trim();
+  }catch{ return ""; }
+}
+$("fab").onclick = () => isOpen() ? closeSheet() : openSheet();
+$("close").onclick = closeSheet;
+$("find").onclick = async () => {
+  const q = $("place").value.trim(); if(!q) return $("place").focus();
+  $("hint").textContent = "Đang tìm…";
+  try{
+    const g = await geocode(q);
+    if(!g) return $("hint").textContent = "Không tìm thấy. Thử ghi cụ thể hơn hoặc chạm vào bản đồ.";
+    const ll = L.latLng(+g.lat, +g.lon); setPick(ll); map.flyTo(ll, 14);
+  }catch{ $("hint").textContent = "Lỗi tìm kiếm. Hãy chạm vào bản đồ."; }
+};
+map.on("click", async e => {
+  const was = isOpen(); setPick(e.latlng); if(!was) openSheet();
+  $("place").value = "Đang lấy tên địa điểm…";
+  const name = await reverse(e.latlng); $("place").value = name;
+});
+$("file").onchange = () => {
+  const f = $("file").files[0]; if(!f) return;
+  $("preview").src = URL.createObjectURL(f); $("preview").style.display = "block";
+};
+$("form").onsubmit = async e => {
+  e.preventDefault();
+  if(!picked){ $("hint").textContent = "Hãy bấm Tìm hoặc chạm vào bản đồ để chọn vị trí."; return; }
+  const f = $("file").files[0];
+  $("save").disabled = true; $("save").textContent = "Đang lưu…";
+  const path = `${Date.now()}-${f.name.replace(/[^\w.-]/g, "_")}`;
+  const up = await db.storage.from("photos").upload(path, f);
+  if(up.error) alert("Lỗi tải ảnh: " + up.error.message);
+  else{
+    const ins = await db.from("photos").insert({title:$("title").value, place:$("place").value, taken_at:$("tdate").value, lat:picked.lat, lng:picked.lng, path});
+    if(ins.error) alert("Lỗi lưu dữ liệu: " + ins.error.message);
+    else{ closeSheet(); await load(); }
+  }
+  $("save").disabled = false; $("save").textContent = "Lưu ảnh";
+};
+
+/* ---------- tải & ghim ---------- */
+async function load(){
+  const {data, error} = await db.from("photos").select("*").order("taken_at", {ascending:false}).order("created_at", {ascending:false});
+  if(error) return alert("Không tải được ảnh: " + error.message);
+  photos = data; $("n").textContent = data.length;
+  markers.forEach(m => m.remove()); markers = [];
+  data.forEach((p, i) => {
+    const m = L.marker([p.lat, p.lng], {icon:icon()}).addTo(map);
+    const box = document.createElement("div"); box.className = "pop";
+    box.innerHTML = '<img alt=""><b></b><small></small><button class="alb">Mở album</button><button class="del">Xóa</button>';
+    box.querySelector("img").src = url(p.path);
+    box.querySelector("b").textContent = p.title || "";
+    box.querySelector("small").textContent = [p.place, fmtDate(p)].filter(Boolean).join(" · ");
+    box.querySelector(".alb").onclick = () => openAlbum(i);
+    box.querySelector(".del").onclick = () => del(p);
+    m.bindPopup(box); markers.push(m);
+  });
+  if(data.length) map.fitBounds(data.map(p => [p.lat, p.lng]), {padding:[70,70], maxZoom:12});
+  buildAlbum();
+}
+async function del(p){
+  if(!confirm("Xóa ảnh này?")) return;
+  await db.storage.from("photos").remove([p.path]);
+  await db.from("photos").delete().eq("id", p.id);
+  map.closePopup(); load();
+}
+
+/* ---------- album kiểu chồng ảnh ---------- */
+const N = () => photos.length;
+const rot = i => ((i * 37) % 13) - 6;
+function buildAlbum(){
+  $("stack").innerHTML = ""; $("index").innerHTML = "";
+  photos.forEach((p, i) => {
+    const c = document.createElement("div"); c.className = "card";
+    c.innerHTML = '<img alt="" draggable="false">'; c.firstChild.src = url(p.path); $("stack").appendChild(c);
+    const f = document.createElement("figure"); f.innerHTML = '<img alt="" loading="lazy"><figcaption class="mono"></figcaption>';
+    f.querySelector("img").src = url(p.path); f.querySelector("figcaption").textContent = p.title || "";
+    f.onclick = () => { cur = i; setMode(false); render(); };
+    $("index").appendChild(f);
+  });
+  $("empty").style.display = N() ? "none" : "grid";
+  cur = Math.min(cur, Math.max(N() - 1, 0)); render();
+}
+function render(){
+  const n = N(); if(!n) { $("counter").textContent = ""; $("cTitle").textContent = ""; $("cMeta").textContent = ""; $("cLocate").style.display = "none"; return; }
+  [...$("stack").children].forEach((c, i) => {
+    const d = (i - cur + n) % n;
+    if(d === 0) { c.style.transform = "none"; c.style.opacity = 1; }
+    else if(d === n - 1 && n > 1) { c.style.transform = "translateX(-70vw) rotate(-14deg)"; c.style.opacity = 0; }
+    else { c.style.transform = `translate(${rot(i) * 3}px, ${d * 6}px) rotate(${rot(i)}deg)`; c.style.opacity = d < 6 ? 1 : 0; }
+    c.style.zIndex = n - d;
+  });
+  const p = photos[cur];
+  $("counter").textContent = `${cur + 1}/${n}`;
+  $("cTitle").textContent = p.title || "Không tên";
+  $("cMeta").textContent = [p.place, fmtDate(p)].filter(Boolean).join(" · ");
+  $("cLocate").style.display = "inline";
+}
+const go = d => { if(N()){ cur = (cur + d + N()) % N(); render(); } };
+function setMode(idx){ $("album").classList.toggle("idx", idx); $("mSlide").classList.toggle("on", !idx); $("mIndex").classList.toggle("on", idx); }
+function openAlbum(i){ if(typeof i === "number") cur = i; setMode(false); $("album").classList.add("open"); map.closePopup(); render(); }
+$("openAlbum").onclick = () => openAlbum();
+$("back").onclick = () => $("album").classList.remove("open");
+$("mSlide").onclick = () => setMode(false);
+$("mIndex").onclick = () => setMode(true);
+$("cLocate").onclick = () => { const p = photos[cur]; $("album").classList.remove("open"); map.flyTo([p.lat, p.lng], 15); markers[cur].openPopup(); };
+$("stack").onclick = e => go(e.clientX < innerWidth * 0.25 ? -1 : 1);
+let sx = null;
+$("stack").addEventListener("touchstart", e => sx = e.touches[0].clientX, {passive:true});
+$("stack").addEventListener("touchend", e => { const dx = e.changedTouches[0].clientX - sx; if(Math.abs(dx) > 40){ go(dx < 0 ? 1 : -1); e.preventDefault(); } });
+addEventListener("keydown", e => {
+  if(!$("album").classList.contains("open")) return;
+  if(e.key === "ArrowRight") go(1); else if(e.key === "ArrowLeft") go(-1); else if(e.key === "Escape") $("back").click();
+});
+load();
+</script>
+</body>
+</html>
