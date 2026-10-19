@@ -35,8 +35,13 @@ button,input{font:inherit;color:inherit}
 #fab{position:fixed;right:16px;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:500;width:58px;height:58px;border:0;background:var(--red);color:#f4eee2;font:2rem/1 var(--mono);cursor:pointer;border-radius:4px;box-shadow:0 8px 20px rgba(40,25,10,.4),inset 0 0 0 3px var(--red),inset 0 0 0 4px rgba(244,238,226,.5)}
 .pin{width:26px;height:26px;background:var(--red);border:3px solid var(--paper);border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.45)}
 .pin.new{background:var(--dark)}
-.pop img{width:190px;display:block;border:6px solid #fbf7ee;box-shadow:0 1px 4px rgba(0,0,0,.3);margin-bottom:6px}
-.pop small{display:block;color:var(--mute)}
+.pin span{display:block;width:20px;height:20px;transform:rotate(45deg);color:var(--paper);font:700 12px/20px var(--mono);text-align:center}
+.pop{width:230px}
+.pi{display:flex;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.pi:last-child{border:0}
+.pi img{width:62px;height:62px;flex:none;object-fit:cover;border:3px solid #fbf7ee;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.pi b{font-weight:400;display:block;line-height:1.2}
+.pop small{display:block;color:var(--mute);line-height:1.2}
 .pop button{margin:8px 6px 0 0;padding:4px 10px;border:1px solid var(--ink);background:none;cursor:pointer}
 .pop button.del{border-color:var(--red);color:var(--red)}
 
@@ -57,8 +62,10 @@ button,input{font:inherit;color:inherit}
 .dt{display:flex;align-items:center;gap:6px}
 .dt input{font:.8rem var(--mono);color:var(--ink);background:none;border:0;border-bottom:1px dashed var(--ink);padding:2px 0;border-radius:0}
 #slot{position:relative;display:grid;place-items:center;height:104px;border:2px dashed var(--mute);background:rgba(120,90,50,.06);color:var(--mute);overflow:hidden;cursor:pointer}
-#file{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
-#preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;filter:sepia(.2)}
+#file{position:absolute;z-index:3;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+#preview{position:absolute;inset:0;display:none;grid-auto-rows:1fr;gap:2px;background:var(--paper2)}
+#preview img{width:100%;height:100%;min-height:0;object-fit:cover;filter:sepia(.2)}
+#cnt{position:absolute;right:6px;bottom:6px;z-index:2;display:none;background:var(--dark);color:var(--paper);padding:2px 9px;border-radius:99px;pointer-events:none}
 .field{display:grid;gap:2px}
 .field label{color:var(--mute)}
 .field input{width:100%;padding:4px 0;background:none;border:0;border-bottom:1px dashed var(--ink);font:1.05rem var(--serif);border-radius:0}
@@ -108,7 +115,7 @@ button:disabled{opacity:.5}
   <div class="tmain">
     <div class="thead"><strong>Vé ảnh</strong><button type="button" id="close" aria-label="Đóng">×</button></div>
     <div class="tmeta mono"><span id="serial"></span><label class="dt">Ngày chụp <input type="date" id="tdate" required></label></div>
-    <label id="slot" class="mono"><span>+ Chạm để chọn ảnh</span><img id="preview" alt=""><input id="file" type="file" accept="image/*" required></label>
+    <label id="slot" class="mono"><span>+ Chạm để chọn ảnh (tối đa 10)</span><div id="preview"></div><span id="cnt" class="mono"></span><input id="file" type="file" accept="image/*" multiple required></label>
     <div class="field"><label class="mono" for="title">Tên ảnh</label><input id="title" required autocomplete="off"></div>
     <div class="row">
       <div class="field"><label class="mono" for="place">Địa điểm</label><input id="place" placeholder="Hồ Gươm, Hà Nội" required autocomplete="off"></div>
@@ -135,8 +142,8 @@ button:disabled{opacity:.5}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 // === ĐIỀN THÔNG TIN SUPABASE CỦA BẠN (Project Settings > API) ===
-const SUPABASE_URL = "https://qjgneejvshmzeijbuhjn.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_B_Iw_ldl9N7LmZpGRBEcRQ_kzk2ICX3";
+const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR-ANON-KEY";
 // ================================================================
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -145,9 +152,9 @@ const map = L.map("map", {zoomControl:false}).setView([16.0, 106.0], 6);
 L.control.zoom({position:"topleft"}).addTo(map);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(map);
 
-const icon = cls => L.divIcon({className:"", html:`<div class="pin ${cls||""}"></div>`, iconSize:[26,26], iconAnchor:[6,26], popupAnchor:[8,-26]});
+const icon = (cls, n) => L.divIcon({className:"", html:`<div class="pin ${cls||""}">${n > 1 ? `<span>${n}</span>` : ""}</div>`, iconSize:[26,26], iconAnchor:[6,26], popupAnchor:[8,-26]});
 const HINT = "Chạm vào bản đồ để chọn hoặc đổi vị trí.";
-let picked = null, newMarker = null, markers = [], photos = [], cur = 0;
+let markerOf = {}, picked = null, newMarker = null, markers = [], photos = [], cur = 0;
 const fmtDate = p => { const d = p.taken_at || (p.created_at||"").slice(0,10); return d ? d.split("-").reverse().join("/") : ""; };
 const url = p => db.storage.from("photos").getPublicUrl(p).data.publicUrl;
 const isOpen = () => $("sheet").classList.contains("open");
@@ -155,7 +162,7 @@ const isOpen = () => $("sheet").classList.contains("open");
 /* ---------- thêm ảnh ---------- */
 function openSheet(){ $("serial").textContent = "Nº " + String(Math.floor(Math.random()*1e6)).padStart(6,"0"); $("tdate").value = new Date(Date.now() - new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10); $("sheet").classList.add("open"); $("hint").textContent = picked ? "" : HINT; }
 function closeSheet(){
-  $("sheet").classList.remove("open"); $("form").reset(); $("preview").style.display = "none";
+  $("sheet").classList.remove("open"); $("form").reset(); $("preview").style.display = "none"; $("preview").innerHTML = ""; $("cnt").style.display = "none";
   if(newMarker){ newMarker.remove(); newMarker = null; } picked = null;
 }
 function setPick(ll){
@@ -190,21 +197,35 @@ map.on("click", async e => {
   const name = await reverse(e.latlng); $("place").value = name;
 });
 $("file").onchange = () => {
-  const f = $("file").files[0]; if(!f) return;
-  $("preview").src = URL.createObjectURL(f); $("preview").style.display = "block";
+  let fs = [...$("file").files], over = fs.length > 10;
+  if(over){ const dt = new DataTransfer(); fs.slice(0, 10).forEach(f => dt.items.add(f)); $("file").files = dt.files; fs = fs.slice(0, 10); }
+  const pv = $("preview"); pv.innerHTML = "";
+  fs.forEach(f => { const im = document.createElement("img"); im.alt = ""; im.src = URL.createObjectURL(f); pv.appendChild(im); });
+  pv.style.gridTemplateColumns = `repeat(${Math.min(fs.length, 5)},1fr)`;
+  pv.style.display = fs.length ? "grid" : "none";
+  $("cnt").textContent = `${fs.length}/10`; $("cnt").style.display = fs.length ? "block" : "none";
+  if(over) $("hint").textContent = "Chỉ lấy 10 ảnh đầu tiên.";
 };
 $("form").onsubmit = async e => {
   e.preventDefault();
   if(!picked){ $("hint").textContent = "Hãy bấm Tìm hoặc chạm vào bản đồ để chọn vị trí."; return; }
-  const f = $("file").files[0];
-  $("save").disabled = true; $("save").textContent = "Đang lưu…";
-  const path = `${Date.now()}-${f.name.replace(/[^\w.-]/g, "_")}`;
-  const up = await db.storage.from("photos").upload(path, f);
-  if(up.error) alert("Lỗi tải ảnh: " + up.error.message);
+  const files = [...$("file").files].slice(0, 10); if(!files.length) return;
+  const title = $("title").value, place = $("place").value, taken_at = $("tdate").value, {lat, lng} = picked;
+  $("save").disabled = true;
+  const rows = [], uploaded = []; let failed = 0;
+  for(let i = 0; i < files.length; i++){
+    $("save").textContent = `Đang lưu ${i + 1}/${files.length}…`;
+    const f = files[i], path = `${Date.now()}-${i}-${f.name.replace(/[^\w.-]/g, "_")}`;
+    const up = await db.storage.from("photos").upload(path, f);
+    if(up.error){ failed++; continue; }
+    uploaded.push(path);
+    rows.push({title: files.length > 1 ? `${title} (${i + 1}/${files.length})` : title, place, taken_at, lat, lng, path});
+  }
+  if(!rows.length) alert("Không tải được ảnh nào. Kiểm tra lại kết nối và bucket photos.");
   else{
-    const ins = await db.from("photos").insert({title:$("title").value, place:$("place").value, taken_at:$("tdate").value, lat:picked.lat, lng:picked.lng, path});
-    if(ins.error) alert("Lỗi lưu dữ liệu: " + ins.error.message);
-    else{ closeSheet(); await load(); }
+    const ins = await db.from("photos").insert(rows);
+    if(ins.error){ await db.storage.from("photos").remove(uploaded); alert("Lỗi lưu dữ liệu: " + ins.error.message); }
+    else{ if(failed) alert(`Đã lưu ${rows.length} ảnh, ${failed} ảnh bị lỗi.`); closeSheet(); await load(); }
   }
   $("save").disabled = false; $("save").textContent = "Lưu ảnh";
 };
@@ -214,17 +235,24 @@ async function load(){
   const {data, error} = await db.from("photos").select("*").order("taken_at", {ascending:false}).order("created_at", {ascending:false});
   if(error) return alert("Không tải được ảnh: " + error.message);
   photos = data; $("n").textContent = data.length;
-  markers.forEach(m => m.remove()); markers = [];
-  data.forEach((p, i) => {
-    const m = L.marker([p.lat, p.lng], {icon:icon()}).addTo(map);
+  markers.forEach(m => m.remove()); markers = []; markerOf = {};
+  const groups = {};
+  data.forEach((p, i) => { (groups[p.lat.toFixed(5) + "," + p.lng.toFixed(5)] ||= []).push(i); });
+  Object.values(groups).forEach(idxs => {
+    const p0 = photos[idxs[0]];
+    const m = L.marker([p0.lat, p0.lng], {icon:icon("", idxs.length)}).addTo(map);
     const box = document.createElement("div"); box.className = "pop";
-    box.innerHTML = '<img alt=""><b></b><small></small><button class="alb">Mở album</button><button class="del">Xóa</button>';
-    box.querySelector("img").src = url(p.path);
-    box.querySelector("b").textContent = p.title || "";
-    box.querySelector("small").textContent = [p.place, fmtDate(p)].filter(Boolean).join(" · ");
-    box.querySelector(".alb").onclick = () => openAlbum(i);
-    box.querySelector(".del").onclick = () => del(p);
-    m.bindPopup(box); markers.push(m);
+    idxs.forEach(i => {
+      const p = photos[i], r = document.createElement("div"); r.className = "pi";
+      r.innerHTML = '<img alt=""><div><b></b><small></small><button class="alb">Mở</button><button class="del">Xóa</button></div>';
+      r.querySelector("img").src = url(p.path);
+      r.querySelector("b").textContent = p.title || "";
+      r.querySelector("small").textContent = [p.place, fmtDate(p)].filter(Boolean).join(" · ");
+      r.querySelector(".alb").onclick = () => openAlbum(i);
+      r.querySelector(".del").onclick = () => del(p);
+      box.appendChild(r); markerOf[i] = m;
+    });
+    m.bindPopup(box, {maxHeight:270}); markers.push(m);
   });
   if(data.length) map.fitBounds(data.map(p => [p.lat, p.lng]), {padding:[70,70], maxZoom:12});
   buildAlbum();
@@ -274,7 +302,7 @@ $("openAlbum").onclick = () => openAlbum();
 $("back").onclick = () => $("album").classList.remove("open");
 $("mSlide").onclick = () => setMode(false);
 $("mIndex").onclick = () => setMode(true);
-$("cLocate").onclick = () => { const p = photos[cur]; $("album").classList.remove("open"); map.flyTo([p.lat, p.lng], 15); markers[cur].openPopup(); };
+$("cLocate").onclick = () => { const p = photos[cur]; $("album").classList.remove("open"); map.flyTo([p.lat, p.lng], 15); markerOf[cur].openPopup(); };
 $("stack").onclick = e => go(e.clientX < innerWidth * 0.25 ? -1 : 1);
 let sx = null;
 $("stack").addEventListener("touchstart", e => sx = e.touches[0].clientX, {passive:true});
